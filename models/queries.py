@@ -1,4 +1,5 @@
-from connection import rpg_db
+from models.connection import rpg_db
+
 
 def fetch_all_users():
     try:
