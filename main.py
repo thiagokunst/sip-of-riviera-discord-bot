@@ -25,10 +25,9 @@ async def on_ready():
         ),
     ],
 )
-async def register(ctx:interactions.CommandContext, nome: str):
-    testedb = models.queries.fetch_all_users()
-    await ctx.send(testedb)
-    await ctx.send(nome)
+async def register(ctx:interactions.CommandContext, nome: str,):
+    user_discord_id = ctx.author.id
+    await ctx.send(nome, ephemeral=True)
 
 
 
