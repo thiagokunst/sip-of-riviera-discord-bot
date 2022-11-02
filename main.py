@@ -18,33 +18,18 @@ async def on_ready():
     description="TBD",
     options=[
         interactions.Option(
-            name="nome",
+            name="name",
             description="TBD",
             type=interactions.OptionType.STRING,
             required=True,
         ),
     ],
 )
-async def register(ctx:interactions.CommandContext, nome: str,):
+async def register(ctx:interactions.CommandContext, name: str,):
+    if not name.isalpha():
+        return await ctx.send("Errou")
     user_discord_id = ctx.author.id
-    user_db = queries.fetch_user_by_id(user_discord_id)
-    if(user_db['status']):
-        if(len(user_db['data']) < 1):
-            await register_user(ctx, user_discord_id)
-        await register_char(ctx, user_db['data']['id'])
-    else:
-        await ctx.send('Deu ruim')
-    print()
-    await ctx.send(nome, ephemeral=True)
-#aux
-async def register_user(ctx, user_discord_id):
-    db_user_insert = queries.insert_user(user_discord_id)
-    if(db_user_insert['status']):
-        ctx.send('deu bom')
-    else:
-        ctx.send('deu ruim')
-async def register_char(ctx, user_db_id):
-    queries.insert_character(user_db_id)
-
-print(queries.fetch_user_by_id('1'))
+    message = queries.insert_user_and_character(str(user_discord_id), name)['data']
+    await ctx.send(message, ephemeral=True)
+    
 bot.start()
