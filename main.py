@@ -26,7 +26,7 @@ async def on_ready():
     ],
 )
 async def register(ctx:interactions.CommandContext, name: str,):
-    if not name.isalpha(): return await ctx.send("Errou")
+    if not all(char.isalpha() or char.isspace() for char in name): return await ctx.send("Errou")
     message = queries.insert_user_and_character(str(ctx.author.id), name)['data']
     await ctx.send(message, ephemeral=True)
 
@@ -55,7 +55,4 @@ async def selectchar(ctx: interactions.ComponentContext, user=None):
     splittxt = txt.split(",")
     await ctx.author.modify(nick=splittxt[1])
 
-
-
-print(queries.fetch_all_characters_by_id("276154831033597952"))
 bot.start()
