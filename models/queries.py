@@ -78,14 +78,13 @@ def insert_user_and_character(discord_id, name):
     try:
         query_cursor = rpg_db.cursor()
 
-        query = "SELECT * FROM tb_users WHERE discord_id = %(discord_id)s"
+        query = "SELECT tb_users.*, COUNT(DISTINCT(tb_characters.id)) AS char_count FROM tb_users LEFT JOIN tb_characters ON tb_users.id = tb_characters.user_id WHERE discord_id = %(discord_id)s GROUP BY tb_users.id"
         query_params = {'discord_id': discord_id}
         query_cursor.execute(query, query_params)
 
         columns = query_cursor.description
         result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
                   query_cursor.fetchall()]
-
         if(len(result) == 0):
             query = "INSERT INTO tb_users (discord_id) VALUES (%(discord_id)s)"
             query_params = {'discord_id': discord_id}
@@ -94,6 +93,9 @@ def insert_user_and_character(discord_id, name):
             user_id = query_cursor.lastrowid
         else:
             user_id = result[0]['id']
+
+        if (result[0]['char_count'] > 0 and result[0]['patreon'] == 0) or (result[0]['char_count'] >= 6 and result[0]['patreon'] == 1):
+            return {"status": True, "data": "Você já atingiu o limite máximo de personagens (1 para não apoiadores ou 6 para apoiadores)"}
 
         query = "INSERT INTO tb_characters (user_id, name) VALUES (%(user_id)s, %(name)s)"
         query_params = {'user_id': user_id, 'name': name}
@@ -108,3 +110,20 @@ def insert_user_and_character(discord_id, name):
         if (e.args[0] == 1062):
             default_message = "Este nome já existe"
         return {"status": False, "data": default_message}
+
+
+def fetch_character_by_id(character_id):
+    try:
+        query_cursor = rpg_db.cursor()
+
+        query = "SELECT * from tb_characters WHERE id = %(character_id)s"
+        query_params = {'character_id': character_id}
+        query_cursor.execute(query, query_params)
+
+        columns = query_cursor.description
+        result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
+                  query_cursor.fetchall()]
+        return {"status": False, "data": result}
+    except Exception as e:
+        print(e)
+        return {"status": False, "data": "deu erro carai"}
