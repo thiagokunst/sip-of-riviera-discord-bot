@@ -74,7 +74,7 @@ def fetch_all_characters_by_id(discord_id):
 
 
 # Insere o usuário (caso ainda não esteja cadastrado) e insere o personagem
-def insert_user_and_character(discord_id, name):
+def insert_user_and_character(discord_id, name, level_one_role_id):
     try:
         query_cursor = rpg_db.cursor()
 
@@ -97,8 +97,8 @@ def insert_user_and_character(discord_id, name):
         if (result[0]['char_count'] > 0 and result[0]['patreon'] == 0) or (result[0]['char_count'] >= 6 and result[0]['patreon'] == 1):
             return {"status": True, "data": "Você já atingiu o limite máximo de personagens (1 para não apoiadores ou 6 para apoiadores)"}
 
-        query = "INSERT INTO tb_characters (user_id, name) VALUES (%(user_id)s, %(name)s)"
-        query_params = {'user_id': user_id, 'name': name}
+        query = "INSERT INTO tb_characters (user_id, name, roles_id) VALUES (%(user_id)s, %(name)s, %(level_one)s)"
+        query_params = {'user_id': user_id, 'name': name, 'level_one': level_one_role_id}
         query_cursor.execute(query, query_params)
         rpg_db.commit()
 
