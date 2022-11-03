@@ -1,6 +1,6 @@
 import json
-
 from models.connection import rpg_db
+
 
 # Lista todos os usuários
 def fetch_all_users():
@@ -20,6 +20,7 @@ def fetch_all_users():
         print(e)
         return {"status": False, "data": "deu erro carai"}
 
+
 # Lista usuário por discord_id
 def fetch_user_by_id(discord_id):
     try:
@@ -38,6 +39,7 @@ def fetch_user_by_id(discord_id):
         print(e)
         return {"status": False, "data": "deu erro carai"}
 
+
 # Lista todos os personagens
 def fetch_all_characters():
     try:
@@ -55,6 +57,7 @@ def fetch_all_characters():
     except Exception as e:
         print(e)
         return {"status": False, "data": "deu erro carai"}
+
 
 # Lista todos os personagens de um usuário buscando por discord_id
 def fetch_all_characters_by_id(discord_id):
@@ -87,7 +90,7 @@ def insert_user_and_character(discord_id, name, roles):
         columns = query_cursor.description
         result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
                   query_cursor.fetchall()]
-        if(len(result) == 0):
+        if (len(result) == 0):
             query = "INSERT INTO tb_users (discord_id) VALUES (%(discord_id)s)"
             query_params = {'discord_id': discord_id}
             query_cursor.execute(query, query_params)
@@ -95,12 +98,17 @@ def insert_user_and_character(discord_id, name, roles):
             user_id = query_cursor.lastrowid
         else:
             user_id = result[0]['id']
-
-        if (result[0]['char_count'] > 0 and result[0]['patreon'] == 0) or (result[0]['char_count'] >= 6 and result[0]['patreon'] == 1):
-            return {"status": True, "data": "Você já atingiu o limite máximo de personagens (1 para não apoiadores ou 6 para apoiadores)"}
+            if (result[0]['char_count'] > 0 and result[0]['patreon'] == 0) or (result[0]['char_count'] >= 6 and result[0]['patreon'] == 1):
+                return {"status": False, "data": "Você já atingiu o limite máximo de personagens (1 para não apoiadores ou 6 para apoiadores)"}
 
         query = "INSERT INTO tb_characters (user_id, name, roles_id) VALUES (%(user_id)s, %(name)s, %(roles)s)"
         query_params = {'user_id': user_id, 'name': name, 'roles': json.dumps(roles)}
+        query_cursor.execute(query, query_params)
+        rpg_db.commit()
+        character_id = query_cursor.lastrowid
+
+        query = "UPDATE tb_users SET active_char = %(character_id)s WHERE id = %(user_id)s"
+        query_params = {'character_id': character_id, 'user_id': user_id}
         query_cursor.execute(query, query_params)
         rpg_db.commit()
 
@@ -126,6 +134,41 @@ def fetch_character_by_id(character_id):
         result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
                   query_cursor.fetchall()]
         return {"status": False, "data": result}
+    except Exception as e:
+        print(e)
+        return {"status": False, "data": "deu erro carai"}
+
+
+def fetch_character_by_id_and_insert_active_character(character_id):
+    try:
+        query_cursor = rpg_db.cursor()
+        query = "SELECT * from tb_characters WHERE id = %(character_id)s"
+        query_params = {'character_id': character_id}
+        query_cursor.execute(query, query_params)
+        columns = query_cursor.description
+        result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
+                  query_cursor.fetchall()]
+
+        query = "UPDATE tb_users SET active_char = %(character_id)s WHERE id = %(user_id)s"
+        query_params = {'character_id': result[0]['id'], 'user_id': result[0]['user_id']}
+        query_cursor.execute(query, query_params)
+        rpg_db.commit()
+
+        return {"status": True, "data": result}
+    except Exception as e:
+        print(e)
+        return {"status": False, "data": "deu erro carai"}
+
+
+def insert_hero_link(discord_id, hero_link):
+    try:
+        query_cursor = rpg_db.cursor()
+        query = "UPDATE tb_characters SET hero_link = %(hero_link)s WHERE id = (SELECT active_char from tb_users WHERE discord_id = %(discord_id)s)"
+        query_params = {'hero_link': hero_link, 'discord_id': discord_id}
+        query_cursor.execute(query, query_params)
+        rpg_db.commit()
+
+        return {"status": True, "data": "Link salvo"}
     except Exception as e:
         print(e)
         return {"status": False, "data": "deu erro carai"}
