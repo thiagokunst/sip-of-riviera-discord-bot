@@ -88,6 +88,7 @@ async def hero(ctx: interactions.CommandContext, link: str):
     queries.insert_hero_link(str(ctx.author.id), link)
     await ctx.send("Link cadastrado", ephemeral=True)
 
+
 @bot.command(
     name="beyond",
     description="TBD",
@@ -106,27 +107,53 @@ async def beyond(ctx: interactions.CommandContext, link: str):
     queries.insert_beyond_link(str(ctx.author.id), link)
     await ctx.send("Link cadastrado", ephemeral=True)
 
+
 @bot.command(
     name="patreon",
-    description="TBD",
+    description="Mudar o status do patreon",
     options=[
         interactions.Option(
-            name="discordid",
-            description="TBD",
-            type=interactions.OptionType.STRING,
-            required=True,
-        ),
-        interactions.Option(
-            name="direction",
-            description="TBD",
+            name="discord_id",
+            description="Discord ID do usuário",
             type=interactions.OptionType.STRING,
             required=True,
         ),
     ],
 )
-async def patreon(ctx: interactions.CommandContext, discordid: str, direction: str):
-    await ctx.send(discordid)
-    await ctx.send(direction)
+async def patreon(ctx: interactions.CommandContext, discord_id: int):
+    give_patreon_button = interactions.Button(
+        style=interactions.ButtonStyle.SUCCESS,
+        label="ATIVAR PATREON",
+        custom_id="give-patreon",
+    )
+    remove_patreon_button = interactions.Button(
+        style=interactions.ButtonStyle.DANGER,
+        label="DESATIVAR PATREON",
+        custom_id="remove-patreon",
+    )
+
+    global discord_patreon_id
+    discord_patreon_id = discord_id
+
+    current_patreon_status = queries.check_if_is_patreon(discord_id)
+    if not current_patreon_status['status']: return await ctx.send(current_patreon_status['data'], ephemeral=True)
+
+    message = "**ATIVADO**" if current_patreon_status['data'] == 1 else "**DESATIVADO**"
+
+    user = await interactions.get(bot, interactions.User, object_id=discord_id)
+    print(current_patreon_status['data'])
+    await ctx.send("O usuário " + user.username + " está com o Patreon " + message + ". O que deseja fazer?", components=[give_patreon_button, remove_patreon_button], ephemeral=True)
+
+
+@bot.component("give-patreon")
+@bot.component("remove-patreon")
+async def change_patreon_status(ctx: interactions.ComponentContext):
+    patreon_status = 1 if ctx.data.custom_id == "give-patreon" else 0
+    message = "**ATIVADO**" if patreon_status == 1 else "**DESATIVADO**"
+
+    update = queries.update_patreon(discord_patreon_id, patreon_status)
+    if not update['status']: return await ctx.send(update['data'], ephemeral=True)
+    await ctx.send("Patreon " + message + " com sucesso", ephemeral=True)
 
 
 bot.start()
