@@ -88,5 +88,45 @@ async def hero(ctx: interactions.CommandContext, link: str):
     queries.insert_hero_link(str(ctx.author.id), link)
     await ctx.send("Link cadastrado", ephemeral=True)
 
+@bot.command(
+    name="beyond",
+    description="TBD",
+    options=[
+        interactions.Option(
+            name="link",
+            description="TBD",
+            type=interactions.OptionType.STRING,
+            required=True,
+        ),
+    ],
+)
+async def beyond(ctx: interactions.CommandContext, link: str):
+    if not bool(re.match("https://www.dndbeyond.com/characters/.*", link)):
+        return await ctx.send("beyond invalido", ephemeral=True)
+    queries.insert_beyond_link(str(ctx.author.id), link)
+    await ctx.send("Link cadastrado", ephemeral=True)
+
+@bot.command(
+    name="patreon",
+    description="TBD",
+    options=[
+        interactions.Option(
+            name="discordid",
+            description="TBD",
+            type=interactions.OptionType.STRING,
+            required=True,
+        ),
+        interactions.Option(
+            name="direction",
+            description="TBD",
+            type=interactions.OptionType.STRING,
+            required=True,
+        ),
+    ],
+)
+async def patreon(ctx: interactions.CommandContext, discordid: str, direction: str):
+    await ctx.send(discordid)
+    await ctx.send(direction)
+
 
 bot.start()
