@@ -61,6 +61,7 @@ async def charselect(ctx: interactions.CommandContext):
 async def selectchar(ctx: interactions.ComponentContext, user=None):
     print(ctx.data.values[0])
     char = queries.fetch_character_by_id_and_insert_active_character(ctx.data.values[0])['data'][0]
+    print(ctx.data.values)
     roles = json.loads(char['roles_id'])
     role_list = []
     for roleid in roles.values():
@@ -134,7 +135,6 @@ async def patreon(ctx: interactions.CommandContext, discord_id: int):
 
     global discord_patreon_id
     discord_patreon_id = discord_id
-
     current_patreon_status = queries.check_if_is_patreon(discord_id)
     if not current_patreon_status['status']: return await ctx.send(current_patreon_status['data'], ephemeral=True)
 
@@ -142,12 +142,13 @@ async def patreon(ctx: interactions.CommandContext, discord_id: int):
 
     user = await interactions.get(bot, interactions.User, object_id=discord_id)
     print(current_patreon_status['data'])
-    await ctx.send("O usuário " + user.username + " está com o Patreon " + message + ". O que deseja fazer?", components=[give_patreon_button, remove_patreon_button], ephemeral=True)
-
+    msg = await ctx.send("O usuário " + user.username + " está com o Patreon " + message + ". O que deseja fazer?", components=[give_patreon_button, remove_patreon_button], ephemeral=True)
+    print(msg.id)
 
 @bot.component("give-patreon")
 @bot.component("remove-patreon")
 async def change_patreon_status(ctx: interactions.ComponentContext):
+    print(ctx.data)
     patreon_status = 1 if ctx.data.custom_id == "give-patreon" else 0
     message = "**ATIVADO**" if patreon_status == 1 else "**DESATIVADO**"
 
