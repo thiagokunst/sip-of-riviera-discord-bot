@@ -17,6 +17,9 @@ bot.load("interactions.ext.persistence", cipher_key = 'E922EF827C3AD0F62C55068A4
 @bot.event
 async def on_ready():
     print('ready')
+    query = queries.fetch_all_info_messages()
+    global info_messages
+    info_messages = query['data']
 
 
 @bot.command(
@@ -32,10 +35,10 @@ async def on_ready():
     ],
 )
 async def register(ctx: interactions.CommandContext, name: str, ):
-    if not all(char.isalpha() or char.isspace() for char in name): return await ctx.send("Errou")
+    if not all(char.isalpha() or char.isspace() for char in name): return await ctx.send(info_messages['char_register_invalid_name'])
     message = queries.insert_user_and_character(str(ctx.author.id), name, {'lvl': '966878470305087507'})
-    if not message['status']: return await ctx.send(message['data'])
-    await ctx.send(message['data'], ephemeral=True)
+    if not message['status']: return await ctx.send(info_messages[message['data']])
+    await ctx.send(info_messages[message['data']], ephemeral=True)
     await ctx.author.modify(roles=[966878470305087507])
     await ctx.author.modify(nick=name)
 
@@ -61,16 +64,15 @@ async def charselect(ctx: interactions.CommandContext):
 
 @bot.component("selectmenu")
 async def selectchar(ctx: interactions.ComponentContext, user=None):
-    print(ctx.data.values[0])
     char = queries.fetch_character_by_id_and_insert_active_character(ctx.data.values[0])['data'][0]
-    print(ctx.data.values)
+    current_nick = ctx.author.nick
     roles = json.loads(char['roles_id'])
     role_list = []
     for roleid in roles.values():
         role_list.append(int(roleid))
     await ctx.author.modify(roles=role_list)
     await ctx.author.modify(nick=char['name'])
-    await ctx.send("sup nigga", ephemeral=True)
+    await ctx.send(info_messages['char_swap'].format(current_nick, char['name']), ephemeral=True)
 
 
 @bot.command(
@@ -87,9 +89,9 @@ async def selectchar(ctx: interactions.ComponentContext, user=None):
 )
 async def hero(ctx: interactions.CommandContext, link: str):
     if not bool(re.match("https://www.heroforge.com/load_config.*", link)):
-        return await ctx.send("invalido", ephemeral=True)
-    queries.insert_hero_link(str(ctx.author.id), link)
-    await ctx.send("Link cadastrado", ephemeral=True)
+        return await ctx.send(info_messages['char_hfimport_invalid'], ephemeral=True)
+    insert = queries.insert_hero_link(str(ctx.author.id), link)
+    await ctx.send(info_messages[insert['data']], ephemeral=True)
 
 
 @bot.command(
@@ -106,9 +108,10 @@ async def hero(ctx: interactions.CommandContext, link: str):
 )
 async def beyond(ctx: interactions.CommandContext, link: str):
     if not bool(re.match("https://www.dndbeyond.com/characters/.*", link)):
-        return await ctx.send("beyond invalido", ephemeral=True)
-    queries.insert_beyond_link(str(ctx.author.id), link)
-    await ctx.send("Link cadastrado", ephemeral=True)
+        return await ctx.send(info_messages['char_dndbimport_invalid_link'], ephemeral=True)
+    insert = queries.insert_beyond_link(str(ctx.author.id), link)
+    if not insert['status']: return await ctx.send(info_messages[insert['data']], ephemeral=True)
+    await ctx.send(info_messages[insert['data']].format(ctx.author.nick), ephemeral=True)
 
 
 @bot.command(

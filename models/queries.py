@@ -90,6 +90,7 @@ def insert_user_and_character(discord_id, name, roles):
         columns = query_cursor.description
         result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
                   query_cursor.fetchall()]
+        print(result)
         if (len(result) == 0):
             query = "INSERT INTO tb_users (discord_id) VALUES (%(discord_id)s)"
             query_params = {'discord_id': discord_id}
@@ -100,8 +101,8 @@ def insert_user_and_character(discord_id, name, roles):
             user_id = result[0]['id']
             if (result[0]['char_count'] > 0 and result[0]['patreon'] == 0) or (
                     result[0]['char_count'] >= 6 and result[0]['patreon'] == 1):
-                return {"status": False,
-                        "data": "Você já atingiu o limite máximo de personagens (1 para não apoiadores ou 6 para apoiadores)"}
+                # return {"status": False, "data": "Você já atingiu o limite máximo de personagens (1 para não apoiadores ou 6 para apoiadores)"}
+                return {"status": False, "data": "char_register_limit"}
 
         query = "INSERT INTO tb_characters (user_id, name, roles_id) VALUES (%(user_id)s, %(name)s, %(roles)s)"
         query_params = {'user_id': user_id, 'name': name, 'roles': json.dumps(roles)}
@@ -114,13 +115,15 @@ def insert_user_and_character(discord_id, name, roles):
         query_cursor.execute(query, query_params)
         rpg_db.commit()
 
-        return {"status": True, "data": "Personagem cadastrado"}
+        # return {"status": True, "data": "Personagem cadastrado"}
+        return {"status": True, "data": "char_register_success"}
 
     except Exception as e:
         print(e)
         default_message = "deu erro carai"
         if (e.args[0] == 1062):
-            default_message = "Este nome já existe"
+            # default_message = "Este nome já existe"
+            default_message = "char_register_duplicate_name"
         return {"status": False, "data": default_message}
 
 
@@ -170,10 +173,14 @@ def insert_hero_link(discord_id, hero_link):
         query_cursor.execute(query, query_params)
         rpg_db.commit()
 
-        return {"status": True, "data": "Link salvo"}
+        # return {"status": True, "data": "Link salvo"}
+        return {"status": True, "data": "char_hfimport_success"}
     except Exception as e:
         print(e)
-        return {"status": False, "data": "deu erro carai"}
+        default_message = "deu erro carai"
+        if (e.args[0] == 1062):
+            default_message = "char_hfimport_duplicate_link"
+        return {"status": False, "data": default_message}
 
 
 def insert_beyond_link(discord_id, beyond_link):
@@ -184,10 +191,15 @@ def insert_beyond_link(discord_id, beyond_link):
         query_cursor.execute(query, query_params)
         rpg_db.commit()
 
-        return {"status": True, "data": "Link salvo"}
+        # return {"status": True, "data": "Link salvo"}
+        return {"status": True, "data": "char_dndbimport_success"}
     except Exception as e:
         print(e)
-        return {"status": False, "data": "deu erro carai"}
+        default_message = "deu erro carai"
+        if (e.args[0] == 1062):
+            default_message = "char_dndbimport_duplicate_link"
+        return {"status": False, "data": default_message}
+
 
 
 def check_if_is_patreon(discord_id):
@@ -215,6 +227,26 @@ def update_patreon(discord_id, patreon_status):
         rpg_db.commit()
 
         return {"status": True, "data": "Patreon atualizado"}
+    except Exception as e:
+        print(e)
+        return {"status": False, "data": "deu erro carai"}
+
+
+def fetch_all_info_messages():
+    try:
+        query_cursor = rpg_db.cursor()
+
+        query_cursor.execute(
+            "SELECT * from tb_messages")
+
+        columns = query_cursor.description
+        result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
+                  query_cursor.fetchall()]
+
+        filtered_result = {}
+        for message in result:
+            filtered_result[message['message_code']] = message['message']
+        return {"status": True, "data": filtered_result}
     except Exception as e:
         print(e)
         return {"status": False, "data": "deu erro carai"}
