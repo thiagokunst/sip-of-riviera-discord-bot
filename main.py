@@ -1,5 +1,6 @@
 import json
 import re
+
 from interactions.ext.persistence import PersistentCustomID
 import models.queries as queries
 import interactions
@@ -37,10 +38,12 @@ async def on_ready():
 async def register(ctx: interactions.CommandContext, name: str, ):
     if not all(char.isalpha() or char.isspace() for char in name): return await ctx.send(info_messages['char_register_invalid_name'])
     message = queries.insert_user_and_character(str(ctx.author.id), name, {'lvl': '966878470305087507'})
-    if not message['status']: return await ctx.send(info_messages[message['data']])
-    await ctx.send(info_messages[message['data']], ephemeral=True)
+    if not message['status']: return await ctx.send(info_messages[message['data']]) #"char_register_limit", "char_register_duplicate_name"
+    await ctx.send(info_messages[message['data']], ephemeral=True) #"char_register_success"
     await ctx.author.modify(roles=[966878470305087507])
     await ctx.author.modify(nick=name)
+    log_channel = await interactions.get(bot, interactions.Channel, object_id=1068677341926137967)
+    await log_channel.send(info_messages["log_register_success"].format(ctx.author.mention, name))
 
 
 @bot.command(
@@ -91,7 +94,10 @@ async def hero(ctx: interactions.CommandContext, link: str):
     if not bool(re.match("https://www.heroforge.com/load_config.*", link)):
         return await ctx.send(info_messages['char_hfimport_invalid'], ephemeral=True)
     insert = queries.insert_hero_link(str(ctx.author.id), link)
-    await ctx.send(info_messages[insert['data']], ephemeral=True)
+    if not insert['status']: return await ctx.send(info_messages[insert['data']], ephemeral=True) #"char_hfimport_duplicate_link"
+    await ctx.send(info_messages[insert['data']], ephemeral=True) #"char_hfimport_success"
+    await ctx.send(info_messages["char_register_finished"], ephemeral=True)
+    await ctx.send(info_messages["server_char_register_finished"])
 
 
 @bot.command(
@@ -110,8 +116,10 @@ async def beyond(ctx: interactions.CommandContext, link: str):
     if not bool(re.match("https://www.dndbeyond.com/characters/.*", link)):
         return await ctx.send(info_messages['char_dndbimport_invalid_link'], ephemeral=True)
     insert = queries.insert_beyond_link(str(ctx.author.id), link)
-    if not insert['status']: return await ctx.send(info_messages[insert['data']], ephemeral=True)
-    await ctx.send(info_messages[insert['data']].format(ctx.author.nick), ephemeral=True)
+    if not insert['status']: return await ctx.send(info_messages[insert['data']], ephemeral=True) #"char_dndbimport_duplicate_link"
+    await ctx.send(info_messages[insert['data']].format(ctx.author.nick), ephemeral=True) #"char_dndbimport_success"
+    log_channel = await interactions.get(bot, interactions.Channel, object_id=1068677341926137967)
+    await log_channel.send(info_messages["/register " + link])
 
 
 @bot.command(
