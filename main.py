@@ -52,7 +52,7 @@ async def register(ctx: interactions.CommandContext, name: str, ):
     await ctx.author.modify(roles=[966878470305087507])
     await ctx.author.modify(nick=name)
     log_channel = await interactions.get(bot, interactions.Channel, object_id=1068677341926137967)
-    await log_channel.send(info_messages["log_register_success"].format(ctx.author.mention, name))
+    await log_channel.send(info_messages['log_register_success'].format(ctx.author.mention, name))
 
 
 @bot.command(
@@ -105,8 +105,8 @@ async def hero(ctx: interactions.CommandContext, link: str):
     insert = queries.insert_hero_link(str(ctx.author.id), link)
     if not insert['status']: return await ctx.send(info_messages[insert['data']], ephemeral=True) #"char_hfimport_duplicate_link"
     await ctx.send(info_messages[insert['data']].format(ctx.author.mention), ephemeral=True) #"char_hfimport_success"
-    await ctx.send(info_messages["char_register_finished"], ephemeral=True)
-    await ctx.send(info_messages["server_char_register_finished"].format(ctx.author.mention))
+    await ctx.send(info_messages['char_register_finished'], ephemeral=True)
+    await ctx.send(info_messages['server_char_register_finished'].format(ctx.author.mention))
 
 
 @bot.command(
@@ -128,8 +128,114 @@ async def beyond(ctx: interactions.CommandContext, link: str):
     if not insert['status']: return await ctx.send(info_messages[insert['data']], ephemeral=True) #"char_dndbimport_duplicate_link"
     await ctx.send(info_messages[insert['data']].format(ctx.author.nick), ephemeral=True) #"char_dndbimport_success"
     log_channel = await interactions.get(bot, interactions.Channel, object_id=1068677341926137967)
-    await log_channel.send(info_messages["/register " + link])
+    await log_channel.send('/register ' + link)
 
+
+@bot.command(
+    name="register_master",
+    description="TBD",
+    options=[
+        interactions.Option(
+            name="id",
+            description="TBD",
+            type=interactions.OptionType.STRING,
+            required=True,
+        ),
+    ],
+)
+async def register_master(ctx: interactions.CommandContext, id: str):
+    message = {}#queries.insert_master(str(ctx.author.id))
+    if not message['status']: return await ctx.send(
+        info_messages[message['data']])  #"master_register_duplicate_name"
+    await ctx.send(info_messages[message['data']])
+
+
+@bot.command(
+    name="create_mission",
+    description="TBD",
+    options=[
+        interactions.Option(
+            name="name",
+            description="TBD",
+            type=interactions.OptionType.STRING,
+            required=True,
+        ),
+    ],
+)
+async def create_mission(ctx: interactions.CommandContext, name: str):
+    message = {}  # queries.insert_mission(str(ctx.author.id), name)
+    if not message['status']: return await ctx.send(
+        info_messages[message['data']])
+    await ctx.send(info_messages[message['data']])
+
+
+@bot.command(
+    name="create_party",
+    description="TBD",
+    options=[
+        interactions.Option(
+            name="name",
+            description="TBD",
+            type=interactions.OptionType.STRING,
+            required=True,
+        ),
+    ],
+)
+async def create_party(ctx: interactions.CommandContext, name: str):
+    message = {}  # queries.insert_party(str(ctx.author.id), name)
+    if not message['status']: return await ctx.send(
+        info_messages[message['data']])  # "already_in_party"
+    await ctx.send(info_messages[message['data']])
+
+@bot.command(
+    name="leave_party",
+    description="TBD"
+)
+async def leave_party(ctx: interactions.CommandContext):
+    message = {}  # queries.leave_party(str(ctx.author.id))
+    if not message['status']: return await ctx.send(
+        info_messages[message['data']])  # "not_in_party"
+    await ctx.send(info_messages[message['data']])
+
+
+@bot.command(
+    name="invite",
+    description="TBD",
+    options=[
+        interactions.Option(
+            name="name",
+            description="TBD",
+            type=interactions.OptionType.STRING,
+            required=True,
+        ),
+    ],
+)
+async def invite(ctx: interactions.CommandContext, name: str):
+    message = {}  # queries.invite(str(ctx.author.id), name)
+    if not message['status']: return await ctx.send(
+        info_messages[message['data']])  # "already_in_party"
+    await ctx.send(info_messages[message['data']])
+
+@bot.command(
+    name="mission_complete",
+    description="TBD"
+)
+async def mission_complete(ctx: interactions.CommandContext):
+    mission = {} #queries.fetch_active_mission(ctx.author.id)
+    if not mission['status']: return await ctx.send(
+        info_messages[mission['data']])  # "no_active_mission"
+    mission_spec = mission['spec']
+    for player_id in mission['party']:
+        message = {}#queries.add_gold_and_exp(player_id, mission_spec['gold'], mission_spec['exp'])
+        if not message['status']: return await ctx.send( #pensar na melhor forma de lidar com erro nessa parte
+            info_messages[message['data']])
+
+@bot.command(
+    name="mission_fail",
+    description="TBD"
+)
+async def mission_fail(ctx: interactions.CommandContext, mission_id: int):
+    await ctx.send("mamaram")
 
 @bot.command(
     name="patreon",
@@ -177,6 +283,9 @@ async def change_patreon_status(ctx, package):
     update = queries.update_patreon(package['id'], patreon_status)
     if not update['status']: return await ctx.send(update['data'], ephemeral=True)
     await ctx.send("Patreon " + message + " com sucesso", ephemeral=True)
+
+
+
 
 
 bot.start()
