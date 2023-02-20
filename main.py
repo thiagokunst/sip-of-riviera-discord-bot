@@ -22,6 +22,15 @@ async def on_ready():
     global info_messages
     info_messages = query['data']
 
+@bot.command(
+    name="reload_db",
+    description="TBD"
+)
+async def reload_db(ctx: interactions.CommandContext):
+    query = queries.fetch_all_info_messages()
+    info_messages = query['data']
+    await ctx.send("DB reloaded")
+
 
 @bot.command(
     name="register",
@@ -75,7 +84,7 @@ async def selectchar(ctx: interactions.ComponentContext, user=None):
         role_list.append(int(roleid))
     await ctx.author.modify(roles=role_list)
     await ctx.author.modify(nick=char['name'])
-    await ctx.send(info_messages['char_swap'].format(current_nick, char['name']), ephemeral=True)
+    await ctx.send(info_messages['char_swap'].format(char['name']), ephemeral=True)
 
 
 @bot.command(
@@ -95,9 +104,9 @@ async def hero(ctx: interactions.CommandContext, link: str):
         return await ctx.send(info_messages['char_hfimport_invalid'], ephemeral=True)
     insert = queries.insert_hero_link(str(ctx.author.id), link)
     if not insert['status']: return await ctx.send(info_messages[insert['data']], ephemeral=True) #"char_hfimport_duplicate_link"
-    await ctx.send(info_messages[insert['data']], ephemeral=True) #"char_hfimport_success"
+    await ctx.send(info_messages[insert['data']].format(ctx.author.mention), ephemeral=True) #"char_hfimport_success"
     await ctx.send(info_messages["char_register_finished"], ephemeral=True)
-    await ctx.send(info_messages["server_char_register_finished"])
+    await ctx.send(info_messages["server_char_register_finished"].format(ctx.author.mention))
 
 
 @bot.command(
