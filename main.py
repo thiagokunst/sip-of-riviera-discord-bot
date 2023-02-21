@@ -211,10 +211,34 @@ async def leave_party(ctx: interactions.CommandContext):
     ],
 )
 async def invite(ctx: interactions.CommandContext, name: str):
-    message = {}  # queries.invite(str(ctx.author.id), name)
-    if not message['status']: return await ctx.send(
-        info_messages[message['data']])  # "already_in_party"
-    await ctx.send(info_messages[message['data']])
+    invited_player_id = {}  # queries.invite(str(ctx.author.id), name)
+    #if not invited_player_id['status']: return await ctx.send(
+    #    info_messages[invited_player_id['data']])  # "already_in_party"
+    user = await interactions.get(bot, interactions.User, object_id=254060718070956033)
+    give_custom_id = PersistentCustomID(bot, "accept_pt", {'id': 254060718070956033, 'action': 'accept'})
+    remove_custom_id = PersistentCustomID(bot, "refuse_pt", {'id': 254060718070956033, 'action': 'refuse'})
+    give_patreon_button = interactions.Button(
+        style=interactions.ButtonStyle.SUCCESS,
+        label="ACEITAR CONVITE",
+        custom_id=str(give_custom_id),
+    )
+    remove_patreon_button = interactions.Button(
+        style=interactions.ButtonStyle.DANGER,
+        label="RECUSAR CONVITE",
+        custom_id=str(remove_custom_id),
+    )
+
+    await user.send("O jogador " + user.username + " está te convidando para um grupo." + " O que deseja fazer?",
+                   components=[give_patreon_button, remove_patreon_button])
+
+@bot.persistent_component("accept_pt")
+@bot.persistent_component("refuse_pt")
+async def change_patreon_status(ctx, package):
+    if package['action'] == 'accept':
+        await ctx.send("Solicitação aceita", ephemeral=True)
+    else:
+        await ctx.send("Solicitação recusada", ephemeral=True)
+
 
 @bot.command(
     name="mission_complete",
