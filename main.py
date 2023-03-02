@@ -144,10 +144,11 @@ async def beyond(ctx: interactions.CommandContext, link: str):
     ],
 )
 async def register_master(ctx: interactions.CommandContext, id: str):
-    message = {}#queries.insert_master(str(ctx.author.id))
-    if not message['status']: return await ctx.send(
-        info_messages[message['data']])  #"master_register_duplicate_name"
-    await ctx.send(info_messages[message['data']])
+    message = queries.insert_master(str(ctx.author.id))
+    if not message['status']: return await ctx.send(message['data'])
+        #info_messages[message['data']])  #"master_register_duplicate_name"
+    #await ctx.send(info_messages[message['data']])
+    await ctx.send(message['data'])
 
 
 @bot.command(
@@ -163,10 +164,11 @@ async def register_master(ctx: interactions.CommandContext, id: str):
     ],
 )
 async def create_mission(ctx: interactions.CommandContext, name: str):
-    message = {}  # queries.insert_mission(str(ctx.author.id), name)
-    if not message['status']: return await ctx.send(
-        info_messages[message['data']])
-    await ctx.send(info_messages[message['data']])
+    message = queries.insert_mission(str(ctx.author.id), name)
+    if not message['status']: return await ctx.send(message['data'])
+       # info_messages[message['data']])
+    #await ctx.send(info_messages[message['data']])
+    await ctx.send(message['data'])
 
 
 @bot.command(
@@ -182,20 +184,22 @@ async def create_mission(ctx: interactions.CommandContext, name: str):
     ],
 )
 async def create_party(ctx: interactions.CommandContext, name: str):
-    message = {}  # queries.insert_party(str(ctx.author.id), name)
-    if not message['status']: return await ctx.send(
-        info_messages[message['data']])  # "already_in_party"
-    await ctx.send(info_messages[message['data']])
+    message = queries.insert_party(str(ctx.author.id), name)
+    if not message['status']: return await ctx.send(message['data'])
+    #    info_messages[message['data']])  # "already_in_party"
+    #await ctx.send(info_messages[message['data']])
+    await ctx.send(message['data'])
 
 @bot.command(
     name="leave_party",
     description="TBD"
 )
 async def leave_party(ctx: interactions.CommandContext):
-    message = {}  # queries.leave_party(str(ctx.author.id))
-    if not message['status']: return await ctx.send(
-        info_messages[message['data']])  # "not_in_party"
-    await ctx.send(info_messages[message['data']])
+    message = queries.leave_party(str(ctx.author.id))
+    if not message['status']: return await ctx.send(message['data'])
+    #    info_messages[message['data']])  # "not_in_party"
+    #await ctx.send(info_messages[message['data']])
+    await ctx.send(message['data'])
 
 
 @bot.command(
@@ -211,30 +215,34 @@ async def leave_party(ctx: interactions.CommandContext):
     ],
 )
 async def invite(ctx: interactions.CommandContext, name: str):
-    invited_player_id = {}  # queries.invite(str(ctx.author.id), name)
-    #if not invited_player_id['status']: return await ctx.send(
+    invited_player = queries.fetch_user_by_char_name(name)
+    if not invited_player['status']: return await ctx.send(invited_player['data'])
     #    info_messages[invited_player_id['data']])  # "already_in_party"
-    user = await interactions.get(bot, interactions.User, object_id=254060718070956033)
-    give_custom_id = PersistentCustomID(bot, "accept_pt", {'id': 254060718070956033, 'action': 'accept'})
-    remove_custom_id = PersistentCustomID(bot, "refuse_pt", {'id': 254060718070956033, 'action': 'refuse'})
-    give_patreon_button = interactions.Button(
+    user = await interactions.get(bot, interactions.User, object_id=invited_player['data']['discord_id'])
+    s_id = str(ctx.author.id)
+    r_id = invited_player['data']['discord_id']
+    acc_id = PersistentCustomID(bot, "accept_pt", {'s_id': s_id,'r_id': r_id, 'action': 'accept'})
+    rec_id = PersistentCustomID(bot, "refuse_pt", {'action': 'refuse'})
+    accept_party_button = interactions.Button(
         style=interactions.ButtonStyle.SUCCESS,
         label="ACEITAR CONVITE",
-        custom_id=str(give_custom_id),
+        custom_id=str(acc_id),
     )
-    remove_patreon_button = interactions.Button(
+    refuse_party_button = interactions.Button(
         style=interactions.ButtonStyle.DANGER,
         label="RECUSAR CONVITE",
-        custom_id=str(remove_custom_id),
+        custom_id=str(rec_id),
     )
 
-    await user.send("O jogador " + user.username + " está te convidando para um grupo." + " O que deseja fazer?",
-                   components=[give_patreon_button, remove_patreon_button])
+    await user.send("O jogador " + ctx.user.username + " está te convidando para um grupo." + " O que deseja fazer?",
+                   components=[accept_party_button, refuse_party_button])
+    await ctx.send("Pedido enviado")
 
 @bot.persistent_component("accept_pt")
 @bot.persistent_component("refuse_pt")
-async def change_patreon_status(ctx, package):
+async def party_request(ctx, package):
     if package['action'] == 'accept':
+        queries.join_party(package['s_id'], package['r_id'])
         await ctx.send("Solicitação aceita", ephemeral=True)
     else:
         await ctx.send("Solicitação recusada", ephemeral=True)
@@ -307,9 +315,6 @@ async def change_patreon_status(ctx, package):
     update = queries.update_patreon(package['id'], patreon_status)
     if not update['status']: return await ctx.send(update['data'], ephemeral=True)
     await ctx.send("Patreon " + message + " com sucesso", ephemeral=True)
-
-
-
 
 
 bot.start()
