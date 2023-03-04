@@ -280,7 +280,8 @@ def insert_master(discord_id):
 def insert_mission(discord_id, name):
     try:
         query_cursor = rpg_db.cursor(buffered=True)
-        query = "SELECT id FROM tb_users WHERE discord_id = %(discord_id)s"
+
+        query = "SELECT id FROM tb_masters WHERE discord_id = %(discord_id)s"
         query_params = {'discord_id': discord_id}
         query_cursor.execute(query, query_params)
         owner_id = query_cursor.fetchone()[0]
@@ -510,3 +511,171 @@ def join_party(inviter_discord_id, invited_player_discord_id):
         print(e)
         default_message = "join_party error"
         return {"status": False, "data": default_message}
+
+
+def fetch_master_by_discord_id(discord_id):
+    try:
+        query_cursor = rpg_db.cursor(buffered=True)
+
+        query = "SELECT * FROM tb_masters WHERE discord_id = %(discord_id)s"
+        query_params = {'discord_id': discord_id}
+        query_cursor.execute(query, query_params)
+        rpg_db.commit()
+
+        columns = query_cursor.description
+        result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
+                  query_cursor.fetchall()]
+
+        return {"status": True, "data": result}
+
+    except Exception as e:
+        print(e)
+        default_message = "fetch_master_by_discord_id error"
+        return {"status": False, "data": default_message}
+
+
+def fetch_mission_by_id(mission_id):
+    try:
+        query_cursor = rpg_db.cursor(buffered=True)
+
+        query = "SELECT * FROM tb_missions WHERE id = %(mission_id)s"
+        query_params = {'mission_id': mission_id}
+        query_cursor.execute(query, query_params)
+        rpg_db.commit()
+
+        columns = query_cursor.description
+        result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
+                  query_cursor.fetchall()]
+
+        return {"status": True, "data": result}
+
+    except Exception as e:
+        print(e)
+        default_message = "fetch_mission_by_id error"
+        return {"status": False, "data": default_message}
+
+
+def gold_edit(characters_id, amount):
+    try:
+        query_cursor = rpg_db.cursor(buffered=True)
+        if len(characters_id) > 1:
+            query = "UPDATE tb_characters SET gold = gold + %(amount)s WHERE id IN {}".format(characters_id)
+            query_params = {'amount': amount}
+            query_cursor.execute(query, query_params)
+            rpg_db.commit()
+            return {"status": True, "data": "valor de gold alterado"}
+        else:
+            query = "UPDATE tb_characters SET gold = gold + %(amount)s WHERE id = %(characters_id)s"
+            query_params = {'amount': amount, 'characters': characters_id[0]}
+            query_cursor.execute(query, query_params)
+            rpg_db.commit()
+            return {"status": True, "data": "valor de gold alterado"}
+
+    except Exception as e:
+        print(e)
+        default_message = "gold_edit error"
+        return {"status": False, "data": default_message}
+
+
+def calculate_party_level(members):
+    try:
+        query_cursor = rpg_db.cursor(buffered=True)
+
+        query = "SELECT level FROM tb_characters WHERE id IN {}".format(members)
+        query_cursor.execute(query)
+        rpg_db.commit()
+        result = 0
+        for level in query_cursor.fetchall():
+            result += level[0]
+        party_level = result/len(members)
+
+        return {"status": True, "data": int(party_level)}
+
+    except Exception as e:
+        print(e)
+        default_message = "calculate_party_level error"
+        return {"status": False, "data": default_message}
+
+
+def fetch_reward_by_level(party_level):
+    try:
+        query_cursor = rpg_db.cursor(buffered=True)
+
+        query = "SELECT * FROM tb_rewards WHERE level = %(party_level)s"
+        query_params = {'party_level': party_level}
+        query_cursor.execute(query, query_params)
+
+        columns = query_cursor.description
+        result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
+                  query_cursor.fetchall()]
+
+        return {"status": True, "data": result}
+
+    except Exception as e:
+        print(e)
+        return {"status": False, "data": "fetch_reward_level error"}
+
+
+
+def exp_edit(characters_id, amount, amount_needed):
+    try:
+        query_cursor = rpg_db.cursor(buffered=True)
+
+        if len(characters_id) > 1:
+            query = "UPDATE tb_characters SET exp = exp + %(amount)s WHERE id IN {}".format(characters_id)
+            query_params = {'amount': amount}
+            query_cursor.execute(query, query_params)
+            rpg_db.commit()
+            return {"status": True, "data": "valor de exp alterado"}
+        else:
+            query = "UPDATE tb_characters SET exp = exp + %(amount)s WHERE id = %(characters_id)s"
+            query_params = {'amount': amount, 'characters': characters_id[0]}
+            query_cursor.execute(query, query_params)
+            rpg_db.commit()
+            return {"status": True, "data": "valor de exp alterado"}
+
+    except Exception as e:
+        print(e)
+        default_message = "gold_edit error"
+        return {"status": False, "data": default_message}
+
+
+def process_mission(discord_id, level):
+    try:
+        query_cursor = rpg_db.cursor(buffered=True)
+
+        master = fetch_master_by_discord_id(discord_id)['data'][0]
+        if master['active_mission'] is None:
+            return {"status": False, "data": "não possui missao ativa"}
+
+        mission = fetch_mission_by_id(master['active_mission'])['data'][0]
+        if mission['current_party'] is None:
+            return {"status": False, "data": "não possui party"}
+
+        party = fetch_party_by_id(mission['current_party'])['data'][0]
+        if party['members'] is None:
+            return {"status": False, "data": "não possui membros"}
+
+        members = json.loads(party['members'])
+        party_level = calculate_party_level(tuple(members.keys()))['data'][0]
+        reward_level = fetch_reward_by_level(party_level)['data'][0]
+        gold_amount = reward_level['gold']
+        gold_edit(tuple(members.keys), gold_amount)
+
+        exp_amount = reward_level['exp']
+        exp_needed_to_level = reward_level['exp_needed']
+
+        exp_result = exp_edit(tuple(members.keys), exp_amount, exp_needed_to_level)
+        return {"status": False, "data": exp_result['data']}
+
+    except Exception as e:
+        print(e)
+        default_message = "process_mission error"
+        return {"status": False, "data": default_message}
+
+def teste(discord_id):
+    user = fetch_user_by_id(discord_id)['data'][0]
+    party = fetch_party_by_id(user['current_party'])['data'][0]
+    members_dic = json.loads(party['members'])
+    #print(calculate_party_level(tuple(members_dic.keys())))
+    print(gold_edit(tuple(members_dic), 100))

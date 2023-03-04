@@ -1,6 +1,8 @@
+import asyncio
 import json
 import re
 
+from interactions.ext.wait_for import setup
 from interactions.ext.persistence import PersistentCustomID
 import models.queries as queries
 import interactions
@@ -14,6 +16,7 @@ bot = interactions.Client(
 
 bot.load("interactions.ext.persistence", cipher_key = 'E922EF827C3AD0F62C55068A4EC18597')
 
+setup(bot)
 
 @bot.event
 async def on_ready():
@@ -201,7 +204,6 @@ async def leave_party(ctx: interactions.CommandContext):
     #await ctx.send(info_messages[message['data']])
     await ctx.send(message['data'])
 
-
 @bot.command(
     name="invite",
     description="TBD",
@@ -214,38 +216,33 @@ async def leave_party(ctx: interactions.CommandContext):
         ),
     ],
 )
-async def invite(ctx: interactions.CommandContext, name: str):
+async def invite(ctx: interactions.CommandContext, name):
     invited_player = queries.fetch_user_by_char_name(name)
-    if not invited_player['status']: return await ctx.send(invited_player['data'])
-    #    info_messages[invited_player_id['data']])  # "already_in_party"
-    user = await interactions.get(bot, interactions.User, object_id=invited_player['data']['discord_id'])
-    s_id = str(ctx.author.id)
-    r_id = invited_player['data']['discord_id']
-    acc_id = PersistentCustomID(bot, "accept_pt", {'s_id': s_id,'r_id': r_id, 'action': 'accept'})
-    rec_id = PersistentCustomID(bot, "refuse_pt", {'action': 'refuse'})
+    if not invited_player['status']:
+        return await ctx.send(invited_player['data'])
+    receiver_discord_id = invited_player['data']['discord_id']
+    user = await interactions.get(bot, interactions.User, object_id=receiver_discord_id)
+    user._client = bot._http
+    custom_id = json.dumps({"sender_discord_id": str(ctx.author.id), "receiver_discord_id": receiver_discord_id})
     accept_party_button = interactions.Button(
         style=interactions.ButtonStyle.SUCCESS,
         label="ACEITAR CONVITE",
-        custom_id=str(acc_id),
-    )
-    refuse_party_button = interactions.Button(
-        style=interactions.ButtonStyle.DANGER,
-        label="RECUSAR CONVITE",
-        custom_id=str(rec_id),
+        custom_id="teste"
     )
 
-    await user.send("O jogador " + ctx.user.username + " está te convidando para um grupo." + " O que deseja fazer?",
-                   components=[accept_party_button, refuse_party_button])
-    await ctx.send("Pedido enviado")
+    msg = await user.send(
+        "O jogador " + ctx.user.username + " está te convidando para um grupo." + " O que deseja fazer?",
+        components=[accept_party_button])
 
-@bot.persistent_component("accept_pt")
-@bot.persistent_component("refuse_pt")
-async def party_request(ctx, package):
-    if package['action'] == 'accept':
-        queries.join_party(package['s_id'], package['r_id'])
-        await ctx.send("Solicitação aceita", ephemeral=True)
-    else:
-        await ctx.send("Solicitação recusada", ephemeral=True)
+    try:
+        button_ctx: interactions.ComponentContext = await bot.wait_for_component(components=accept_party_button, timeout=15)
+        queries.join_party(str(ctx.author.id), receiver_discord_id)
+        await button_ctx.send("Aceito")
+        await msg.delete()
+
+    except asyncio.TimeoutError:
+        # When it times out, edit the original message and remove the button(s)
+        return await msg.delete()
 
 
 @bot.command(
@@ -253,14 +250,11 @@ async def party_request(ctx, package):
     description="TBD"
 )
 async def mission_complete(ctx: interactions.CommandContext):
-    mission = {} #queries.fetch_active_mission(ctx.author.id)
-    if not mission['status']: return await ctx.send(
-        info_messages[mission['data']])  # "no_active_mission"
-    mission_spec = mission['spec']
-    for player_id in mission['party']:
-        message = {}#queries.add_gold_and_exp(player_id, mission_spec['gold'], mission_spec['exp'])
-        if not message['status']: return await ctx.send( #pensar na melhor forma de lidar com erro nessa parte
-            info_messages[message['data']])
+    mission = queries.process_mission(str(ctx.author.id))
+    if not mission['status']: return await ctx.send(mission['data'])
+    #    info_messages[mission['data']])  # "no_active_mission"
+    mission_spec = mission['specs']
+
 
 @bot.command(
     name="mission_fail",
@@ -268,6 +262,13 @@ async def mission_complete(ctx: interactions.CommandContext):
 )
 async def mission_fail(ctx: interactions.CommandContext, mission_id: int):
     await ctx.send("mamaram")
+
+@bot.command(
+    name="teste",
+    description="TBD"
+)
+async def teste(ctx: interactions.CommandContext):
+    print(queries.teste(str(ctx.author.id)))
 
 @bot.command(
     name="patreon",
