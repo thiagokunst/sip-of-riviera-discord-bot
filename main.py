@@ -216,6 +216,7 @@ async def leave_party(ctx: interactions.CommandContext):
         ),
     ],
 )
+@interactions.autodefer()
 async def invite(ctx: interactions.CommandContext, name):
     invited_player = queries.fetch_user_by_char_name(name)
     if not invited_player['status']:
@@ -223,12 +224,12 @@ async def invite(ctx: interactions.CommandContext, name):
     receiver_discord_id = invited_player['data']['discord_id']
     user = await interactions.get(bot, interactions.User, object_id=receiver_discord_id)
     user._client = bot._http
-    custom_id = json.dumps({"sender_discord_id": str(ctx.author.id), "receiver_discord_id": receiver_discord_id})
     accept_party_button = interactions.Button(
         style=interactions.ButtonStyle.SUCCESS,
         label="ACEITAR CONVITE",
         custom_id="teste"
     )
+
 
     msg = await user.send(
         "O jogador " + ctx.user.username + " está te convidando para um grupo." + " O que deseja fazer?",
@@ -244,24 +245,60 @@ async def invite(ctx: interactions.CommandContext, name):
         # When it times out, edit the original message and remove the button(s)
         return await msg.delete()
 
+def sucess_mission_message(mission_data):
+    party_name = mission_data.pop()
+    basic_message = "O grupo {} sucedeu na missão.\n\n".format(party_name)
+    if len(mission_data) > 0:
+        leveling_info = "\n".join(mission_data)
+        final_message = basic_message + leveling_info
+        return final_message
+    else:
+        return basic_message
+
+def fail_mission_message(mission_data):
+    party_name = mission_data.pop()
+    basic_message = "O grupo {} falhou na missão.\n\n".format(party_name)
+    if len(mission_data) > 0:
+        leveling_info = "\n".join(mission_data)
+        final_message = basic_message + leveling_info
+        return final_message
+    else:
+        return basic_message
 
 @bot.command(
-    name="mission_complete",
-    description="TBD"
+    name="mission_end",
+    description="TBD",
 )
-async def mission_complete(ctx: interactions.CommandContext):
-    mission = queries.process_mission(str(ctx.author.id))
-    if not mission['status']: return await ctx.send(mission['data'])
-    #    info_messages[mission['data']])  # "no_active_mission"
-    mission_spec = mission['specs']
+@interactions.autodefer()
+async def mission_end(ctx: interactions.CommandContext):
+    sucess_button = interactions.Button(
+        style=interactions.ButtonStyle.SUCCESS,
+        label="SUCESSO",
+        custom_id="sucesso"
+    )
+    fail_button = interactions.Button(
+        style=interactions.ButtonStyle.DANGER,
+        label="FALHA",
+        custom_id="falha"
+    )
+    action_row = interactions.ActionRow(components=[sucess_button, fail_button])
+    await ctx.send("Declare o resultado da missão", components=action_row, ephemeral=True)
 
-
-@bot.command(
-    name="mission_fail",
-    description="TBD"
-)
-async def mission_fail(ctx: interactions.CommandContext, mission_id: int):
-    await ctx.send("mamaram")
+    try:
+        button_ctx: interactions.ComponentContext = await bot.wait_for_component(components=action_row, timeout=300)
+        if(button_ctx.custom_id == "sucesso"):
+            await button_ctx.defer()
+            mission_data = queries.mission_sucess(str(ctx.author.id))['data']
+            mission_end_message = sucess_mission_message(mission_data)
+            await button_ctx.send(mission_end_message)
+        if(button_ctx.custom_id == "falha"):
+            await button_ctx.defer()
+            mission_data = queries.mission_failure(str(ctx.author.id))['data']
+            mission_end_message = fail_mission_message(mission_data)
+            await button_ctx.send(mission_end_message)
+    except asyncio.TimeoutError:
+        # When it times out, edit the original message and remove the button(s)
+        print("quebrou")
 
 @bot.command(
     name="teste",
@@ -269,6 +306,27 @@ async def mission_fail(ctx: interactions.CommandContext, mission_id: int):
 )
 async def teste(ctx: interactions.CommandContext):
     print(queries.teste(str(ctx.author.id)))
+
+@bot.command(
+    name="char_info",
+    description="TBD"
+)
+async def char_info(ctx: interactions.CommandContext):
+    await ctx.send(queries.char_info(str(ctx.author.id)))
+
+@bot.command(
+    name="party_info",
+    description="TBD"
+)
+async def party_info(ctx: interactions.CommandContext):
+    await ctx.send(queries.party_info(str(ctx.author.id)))
+
+@bot.command(
+    name="mission_info",
+    description="TBD"
+)
+async def mission_info(ctx: interactions.CommandContext):
+    await ctx.send(queries.mission_info(str(ctx.author.id)))
 
 @bot.command(
     name="patreon",
@@ -284,6 +342,7 @@ async def teste(ctx: interactions.CommandContext):
         ),
     ],
 )
+@interactions.autodefer()
 async def patreon(ctx: interactions.CommandContext, discord_id: str):
     give_custom_id = PersistentCustomID(bot, "give-patreon", {'id': discord_id, 'action': 'give'})
     remove_custom_id = PersistentCustomID(bot, "remove-patreon", {'id': discord_id, 'action': 'remove'})
