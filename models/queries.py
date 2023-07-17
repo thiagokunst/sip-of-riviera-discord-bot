@@ -267,17 +267,17 @@ def insert_master(discord_id):
         query_params = {'discord_id': discord_id}
         query_cursor.execute(query, query_params)
         rpg_db.commit()
-        return {"status": True, "data": "mestre inserido"}
+        return {"status": True, "data": "master_register_sucess"}
 
     except Exception as e:
         print(e)
-        default_message = "deu erro carai"
+        default_message = "insert_master error"
         if e.args[0] == 1062:
-            default_message = "mestre ja existe"
+            default_message = "master_register_duplicate_id"
         return {"status": False, "data": default_message}
 
 
-def insert_mission(discord_id, name):
+def insert_mission(discord_id, channel_id, dificuldade):
     try:
         query_cursor = rpg_db.cursor(buffered=True)
 
@@ -286,50 +286,42 @@ def insert_mission(discord_id, name):
         query_cursor.execute(query, query_params)
         owner_id = query_cursor.fetchone()[0]
 
-        query = "INSERT INTO tb_missions (owner_id, name) VALUES (%(owner_id)s, %(name)s)"
-        query_params = {'owner_id': owner_id, 'name': name}
+        query = "INSERT INTO tb_missions (owner_id, channel_id, difficulty) VALUES (%(owner_id)s, %(channel_id)s, %(dificuldade)s)"
+        query_params = {'owner_id': owner_id, 'channel_id':channel_id, 'dificuldade': dificuldade}
         query_cursor.execute(query, query_params)
         rpg_db.commit()
-        return {"status": True, "data": "missao inserida"}
+        return {"status": True, "data": "mission_register_sucess"}
 
     except Exception as e:
         print(e)
-        default_message = "deu erro carai"
-        # if (e.args[0] == 1062):
-        #    default_message = "mestre ja existe"
+        default_message = "insert_mission error"
+        if (e.args[0] == 1062):
+            default_message = "mission_register_duplicate_name"
         return {"status": False, "data": default_message}
 
 
-def insert_party(discord_id, name):
+def insert_party(discord_id, mission_channel_id):
     try:
         query_cursor = rpg_db.cursor(buffered=True)
 
         user_data = fetch_user_by_id(discord_id)['data'][0]
-        current_party = user_data['current_party']
-        if current_party is not None:
-            return {"status": False, "data": "já está em uma party"}
         owner_character_id = user_data['active_char']
         members_json = json.dumps({owner_character_id: discord_id})
 
-        query = "INSERT INTO tb_parties (owner_id, name, members) VALUES (%(owner_character_id)s, %(name)s, " \
-                "%(members)s) "
-        query_params = {'owner_character_id': owner_character_id, 'name': name, 'members': members_json}
+        query = "INSERT INTO tb_parties (owner_id, mission_channel_id, members) VALUES (%(owner_character_id)s, %(mission_channel_id)s, %(members)s)"
+        query_params = {'owner_character_id': owner_character_id, 'mission_channel_id': mission_channel_id, 'members': members_json}
         query_cursor.execute(query, query_params)
         rpg_db.commit()
         party_id = query_cursor.lastrowid
 
-        query = "UPDATE tb_users SET current_party = %(party_id)s WHERE discord_id = %(discord_id)s"
-        query_params = {'party_id': party_id, 'discord_id': discord_id}
-        query_cursor.execute(query, query_params)
-        rpg_db.commit()
 
-        return {"status": True, "data": "party criada"}
+        return {"status": True, "data": party_id}
 
     except Exception as e:
         print(e)
-        default_message = "insert_party"
-        # if (e.args[0] == 1062):
-        #    default_message = "mestre ja existe"
+        default_message = "insert_party error"
+        if e.args[0] == 1062:
+            default_message = "create_party_duplicate"
         return {"status": False, "data": default_message}
 
 
@@ -354,7 +346,6 @@ def fetch_party_by_id(party_id):
         return {"status": False, "data": default_message}
 
 
-
 def null_current_party_by_discord_id(discord_id):
     try:
         query_cursor = rpg_db.cursor(buffered=True)
@@ -377,27 +368,15 @@ def null_current_party_by_discord_id(discord_id):
         return {"status": False, "data": default_message}
 
 
-def disband_party(discord_id):
+def disband_party(party_id):
     try:
         query_cursor = rpg_db.cursor(buffered=True)
 
-        user_data = fetch_user_by_id(discord_id)['data'][0]
-        current_party = user_data['current_party']
-        party_data = fetch_party_by_id(current_party)['data'][0]
-        members_json = json.loads(party_data['members'])
-        members_discord_id_list = []
-        for member in members_json.values():
-            members_discord_id_list.append(member)
-        members_discord_id_tuple = tuple(members_discord_id_list)
-
-        null_current_party_by_discord_id(members_discord_id_tuple)
-
-        query = "DELETE FROM tb_parties WHERE id = %(current_party)s"
-        query_params = {'current_party': current_party}
-        query_cursor.execute(query, query_params)
+        query = f"DELETE FROM tb_parties WHERE id = {party_id}"
+        query_cursor.execute(query)
         rpg_db.commit()
 
-        return {"status": True, "data": "party desfeita"}
+        return {"status": True, "data": "party_disband"}
 
     except Exception as e:
         print(e)
@@ -405,51 +384,27 @@ def disband_party(discord_id):
         return {"status": False, "data": default_message}
 
 
-def remove_party_member(discord_id):
+def remove_party_member(discord_id, party_id):
     try:
         query_cursor = rpg_db.cursor(buffered=True)
 
-        user_data = fetch_user_by_id(discord_id)['data'][0]
-        current_party = user_data['current_party']
-        party_data = fetch_party_by_id(current_party)['data'][0]
-        user_character_id = user_data['active_char']
+        party_data = fetch_party_by_id(party_id)['data'][0]
         members_dic = json.loads(party_data['members'])
-        members_dic.pop(str(user_character_id))
-        members_json = json.dumps(members_dic)
+        if discord_id not in members_dic.values():
+            return {"status": False, "data": "not_in_the_party"}
+        new_dic = {key: value for key, value in members_dic.items() if value != discord_id}
+        members_json = json.dumps(new_dic)
 
-        query = "UPDATE tb_parties SET members = %(members)s WHERE id = %(current_party)s"
-        query_params = {'members': members_json, 'current_party': current_party}
-        query_cursor.execute(query, query_params)
+        query = "UPDATE tb_parties SET members = %(members_json)s WHERE id = %(party_id)s"
+        params = {'members_json': members_json, 'party_id': party_id}
+        query_cursor.execute(query, params)
         rpg_db.commit()
 
-        list_discord_id = [discord_id]
-        null_current_party_by_discord_id(list_discord_id)
-
-        return {"status": True, "data": "removido da party"}
+        return {"status": True, "data": "player_removed"}
 
     except Exception as e:
         print(e)
         default_message = "fetch_party_by_id error"
-        return {"status": False, "data": default_message}
-
-
-def leave_party(discord_id):
-    try:
-        user_data = fetch_user_by_id(discord_id)['data'][0]
-        current_party = user_data['current_party']
-        if current_party is None:
-            return {"status": False, "data": "não está em uma party"}
-
-        party_data = fetch_party_by_id(current_party)['data'][0]
-        user_character_id = user_data['active_char']
-        if party_data['owner_id'] == user_character_id:
-            return disband_party(discord_id)
-        else:
-            return remove_party_member(discord_id)
-
-    except Exception as e:
-        print(e)
-        default_message = "leave_party error"
         return {"status": False, "data": default_message}
 
 
@@ -475,24 +430,19 @@ def fetch_user_by_char_name(char_name):
 
     except Exception as e:
         print(e)
-        default_message = "fetch_by_char_name error"
+        default_message = "char_name_not_found"
         return {"status": False, "data": default_message}
 
 
-def join_party(inviter_discord_id, invited_player_discord_id):
+def insert_player_in_party(player_discord_id, character_id, party_id):
     try:
         query_cursor = rpg_db.cursor(buffered=True)
 
-        inviter_data = fetch_user_by_id(inviter_discord_id)['data'][0]
-        invited_player_data = fetch_user_by_id(invited_player_discord_id)['data'][0]
-        if inviter_data['current_party'] is None:
-            return {"status": False, "data": "não está numa party"}
-        if invited_player_data['current_party'] is not None:
-            return {"status": False, "data": "já está numa party"}
-        party = fetch_party_by_id(inviter_data['current_party'])['data'][0]
-        party_id = party['id']
+        party = fetch_party_by_id(party_id)['data'][0]
         members_dic = json.loads(party['members'])
-        members_dic[invited_player_data['active_char']] = invited_player_discord_id
+        if str(character_id) in members_dic.keys():
+            return {"status": False, "data": "player_already_in_party"}
+        members_dic[character_id] = player_discord_id
         members_json = json.dumps(members_dic)
 
         query = "UPDATE tb_parties SET members = %(members)s WHERE id = %(party_id)s"
@@ -500,16 +450,11 @@ def join_party(inviter_discord_id, invited_player_discord_id):
         query_cursor.execute(query, query_params)
         rpg_db.commit()
 
-        query = "UPDATE tb_users SET current_party = %(current_party)s WHERE discord_id IN(%(discord_id)s)"
-        query_params = {'current_party': party_id, 'discord_id': invited_player_discord_id}
-        query_cursor.execute(query, query_params)
-        rpg_db.commit()
-
-        return {"status": True, "data": "entrada bem sucedida"}
+        return {"status": True, "data": members_dic}
 
     except Exception as e:
         print(e)
-        default_message = "join_party error"
+        default_message = "insert_player_in_party error"
         return {"status": False, "data": default_message}
 
 
@@ -677,7 +622,7 @@ def exp_edit(characters_id, exp_amount):
             tuples = check_leveling(characters, exp_amount)[1]
             placeholder = ("{}," * len(characters_id))[:-1]
 
-            prequery = "INSERT INTO tb_characters (id, exp, level) VALUES " + placeholder + "AS char_data ON DUPLICATE KEY UPDATE exp = char_data.exp, level = char_data.level"
+            prequery = "INSERT INTO tb_characters (id, exp, tb_characters.level) VALUES " + placeholder + " AS char_data ON DUPLICATE KEY UPDATE exp = char_data.exp, tb_characters.level = char_data.level"
             query = prequery.format(*tuples)
             query_cursor.execute(query)
             rpg_db.commit()
@@ -699,23 +644,21 @@ def exp_edit(characters_id, exp_amount):
         return {"status": False, "data": default_message}
 
 
-def process_mission(discord_id, exp_multiplier, gold_multiplier):
+def process_mission(channel_id, exp_multiplier, gold_multiplier):
     try:
-        master = fetch_master_by_discord_id(discord_id)['data'][0]
-        if master['active_mission'] is None:
-            return {"status": False, "data": "não possui missao ativa"}
+        query_cursor = rpg_db.cursor(buffered=True)
 
-        mission = fetch_mission_by_id(master['active_mission'])['data'][0]
-        if mission['current_party'] is None:
-            return {"status": False, "data": "não possui party"}
+        query = f"SELECT tb_parties.members, tb_missions.difficulty FROM tb_missions INNER JOIN tb_parties ON tb_missions.current_party=tb_parties.id WHERE tb_missions.channel_id = {channel_id}"
+        query_cursor.execute(query)
+        rpg_db.commit()
 
-        party = fetch_party_by_id(mission['current_party'])['data'][0]
-        if party['members'] is None:
-            return {"status": False, "data": "não possui membros"}
+        columns = query_cursor.description
+        result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
+                  query_cursor.fetchall()][0]
 
-        members = json.loads(party['members'])
-        mission_level = mission['level']
-        party_level = calculate_party_level(tuple(members.keys()))['data']+mission_level
+        members = json.loads(result['members'])
+        mission_level = result['difficulty']
+        party_level = calculate_party_level(tuple(members.keys()))['data']+mission_level-1
         reward_level = fetch_reward_by_level(party_level)['data'][0]
         gold_amount = reward_level['gold']*gold_multiplier
         gold_edit(tuple(members.keys()), gold_amount)
@@ -723,32 +666,19 @@ def process_mission(discord_id, exp_multiplier, gold_multiplier):
         exp_amount = reward_level['exp']*exp_multiplier
 
         exp_result = exp_edit(tuple(members.keys()), exp_amount)['data']
-        exp_result.append(party['name'])
-        return {"status": False, "data": exp_result}
+
+        return {"status": True, "data": exp_result}
 
     except Exception as e:
         print(e)
         default_message = "process_mission error"
         return {"status": False, "data": default_message}
 
-def mission_sucess(master_discord_id):
-    return process_mission(master_discord_id, 1, 1)
+def mission_sucess(channel_id):
+    return process_mission(channel_id, 1, 1)
 
-def mission_failure(master_discord_id):
-    return process_mission(master_discord_id, 0.5, 0)
-
-def teste(discord_id):
-    user = fetch_user_by_id(discord_id)['data'][0]
-    party = fetch_party_by_id(user['current_party'])['data'][0]
-    members_dic = json.loads(party['members'])
-    #print(calculate_party_level(tuple(members_dic.keys())))
-    #print(gold_edit(tuple(members_dic), 100))
-    #print(fetch_characters_list_by_id(tuple(members_dic)))
-    #print(fetch_leveling_chart())
-    #print(exp_edit(tuple(members_dic), 50))
-    #print(mission_sucess((str(276154831033597952))))
-    print(mission_failure((str(276154831033597952))))
-
+def mission_failure(channel_id):
+    return process_mission(channel_id, 0.5, 0)
 
 def char_info(discord_id):
     user = fetch_user_by_id(discord_id)['data'][0]
@@ -759,3 +689,171 @@ def party_info(discord_id):
     user = fetch_user_by_id(discord_id)['data'][0]
     party = fetch_party_by_id(user['current_party'])['data'][0]
     return party['members']
+
+
+def fetch_active_char_data_by_discord_id(discord_id, columns_list):
+    try:
+        query_cursor = rpg_db.cursor(buffered=True)
+
+        columns_list_string = ", ".join(columns_list)
+        query = f"SELECT {columns_list_string} FROM tb_characters INNER JOIN tb_users ON tb_characters.user_id=tb_users.id WHERE tb_users.discord_id = {discord_id}"
+        query_cursor.execute(query)
+        rpg_db.commit()
+
+        columns = query_cursor.description
+        result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
+                  query_cursor.fetchall()][0]
+
+        return {"status": True, "data": result}
+
+    except Exception as e:
+        print(e)
+        default_message = "fetch_active_char_data_by_discord_id error"
+        return {"status": False, "data": default_message}
+
+
+def fetch_host_id_by_party_id(party_id):
+    try:
+        query_cursor = rpg_db.cursor(buffered=True)
+
+        query = f"SELECT discord_id FROM tb_characters INNER JOIN tb_parties ON tb_characters.id=tb_parties.owner_id INNER JOIN tb_users ON tb_characters.user_id=tb_users.id WHERE tb_parties.id = {party_id}"
+        query_cursor.execute(query)
+        rpg_db.commit()
+
+        columns = query_cursor.description
+        result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
+                  query_cursor.fetchall()][0]
+
+        return {"status": True, "data": result}
+
+    except Exception as e:
+        print(e)
+        default_message = "fetch_host_id_by_party_id error"
+        return {"status": False, "data": default_message}
+
+
+def fetch_group_hosts_by_channel(channel_id):
+    try:
+        query_cursor = rpg_db.cursor(buffered=True)
+
+        query = f"SELECT tb_characters.name, tb_parties.id FROM tb_characters INNER JOIN tb_parties ON tb_characters.id=tb_parties.owner_id WHERE tb_parties.mission_channel_id = {channel_id}"
+        query_cursor.execute(query)
+        rpg_db.commit()
+
+        columns = query_cursor.description
+        result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
+                  query_cursor.fetchall()]
+
+        return {"status": True, "data": result}
+
+    except Exception as e:
+        print(e)
+        default_message = "fetch_host_id_by_party_id error"
+        return {"status": False, "data": default_message}
+
+
+def check_channel_id_owner(master_id):
+    try:
+        query_cursor = rpg_db.cursor(buffered=True)
+
+        query = f"SELECT channel_id FROM tb_missions INNER JOIN tb_masters ON tb_missions.owner_id=tb_masters.id WHERE tb_masters.discord_id = {master_id}"
+        query_cursor.execute(query)
+        rpg_db.commit()
+
+        columns = query_cursor.description
+        result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
+                  query_cursor.fetchall()][0]
+
+        return {"status": True, "data": result}
+
+    except Exception as e:
+        print(e)
+        default_message = "fetch_host_id_by_party_id error"
+        return {"status": False, "data": default_message}
+
+
+def change_mission_active_party(mission_channel_id, party_id):
+    try:
+        query_cursor = rpg_db.cursor(buffered=True)
+
+        query = f"UPDATE tb_missions SET current_party = {party_id} WHERE channel_id = {mission_channel_id}"
+        query_cursor.execute(query)
+        rpg_db.commit()
+
+        return {"status": True, "data": "party_selected"}
+
+    except Exception as e:
+        print(e)
+        default_message = "fetch_host_id_by_party_id error"
+        return {"status": False, "data": default_message}
+
+
+def fetch_party_by_channel_id(channel_id):
+    try:
+        query_cursor = rpg_db.cursor(buffered=True)
+
+        query = f"SELECT tb_parties.members FROM tb_missions INNER JOIN tb_parties ON tb_missions.current_party=tb_parties.id WHERE tb_missions.channel_id = {channel_id}"
+        query_cursor.execute(query)
+        rpg_db.commit()
+
+        columns = query_cursor.description
+        result = [{columns[index][0]: column for index, column in enumerate(value)} for value in
+                  query_cursor.fetchall()][0]
+
+        return {"status": True, "data": result}
+
+    except Exception as e:
+        print(e)
+        default_message = "fetch_host_id_by_party_id error"
+        return {"status": False, "data": default_message}
+
+
+def delete_mission(mission_channel_id):
+    try:
+        query_cursor = rpg_db.cursor(buffered=True)
+
+        query = f"DELETE FROM tb_missions WHERE tb_missions.channel_id = {mission_channel_id}"
+        query_cursor.execute(query)
+        rpg_db.commit()
+
+        query = f"DELETE FROM tb_parties WHERE tb_parties.mission_channel_id = {mission_channel_id}"
+        query_cursor.execute(query)
+        rpg_db.commit()
+
+        return {"status": True, "data": "channel_deleted"}
+
+    except Exception as e:
+        print(e)
+        default_message = "fetch_host_id_by_party_id error"
+        return {"status": False, "data": default_message}
+
+
+def tier_calculator(level):
+    if level in [0, 1, 2, 3, 4]:
+        return 1
+    elif level in [5, 6, 7, 8, 9, 10]:
+        return 2
+    elif level in [11, 12, 13, 14, 15, 16]:
+        return 3
+    elif level in [17, 18, 19, 20]:
+        return 4
+    else:
+        return 5
+
+
+def fetch_items_by_level(level):
+    try:
+        query_cursor = rpg_db.cursor(buffered=True)
+
+        tier = tier_calculator(level)
+        query = f"SELECT tb_trial_items.name FROM tb_trial_items WHERE tb_trial_items.tier = {tier}"
+        query_cursor.execute(query)
+        rpg_db.commit()
+
+        result = query_cursor.fetchall()
+        return {"status": True, "data": result}
+
+    except Exception as e:
+        print(e)
+        default_message = "fetch_items_by_level error"
+        return {"status": False, "data": default_message}
